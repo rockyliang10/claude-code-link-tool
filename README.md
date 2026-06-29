@@ -16,6 +16,7 @@
 
 - 输入 AquaCloud API Key
 - 拉取并选择可用模型
+- 搜索过滤模型列表，适合模型数量很多的账号
 - 自主选择 Claude Code 启动后的工作目录
 - 一键启动 Claude Code
 - 一键诊断本机 `claude` 命令、工作目录和 AquaCloud `/models` 接口

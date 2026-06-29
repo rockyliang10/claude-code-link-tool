@@ -4,6 +4,7 @@ Add-Type -AssemblyName System.Drawing
 $ErrorActionPreference = "Stop"
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath = Join-Path $AppDir "aqua-claude-config.json"
+$script:AllModelIds = New-Object System.Collections.Generic.List[string]
 
 function Get-DefaultWorkingDirectory {
     $driveRoot = [System.IO.Path]::GetPathRoot($AppDir)
@@ -78,6 +79,61 @@ function Get-ModelId($Item) {
     return [string]$Item
 }
 
+function Set-AllModels($Ids) {
+    $script:AllModelIds.Clear()
+    foreach ($id in $Ids) {
+        if (-not [string]::IsNullOrWhiteSpace($id) -and -not $script:AllModelIds.Contains($id)) {
+            [void]$script:AllModelIds.Add($id)
+        }
+    }
+}
+
+function Test-ModelMatchesFilter($ModelId, $FilterText) {
+    if ([string]::IsNullOrWhiteSpace($FilterText)) {
+        return $true
+    }
+
+    $tokens = $FilterText.Trim() -split "\s+"
+    foreach ($token in $tokens) {
+        if ($ModelId.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Update-ModelFilter($FilterText = "", $PreferredModel = "") {
+    $currentModel = $PreferredModel
+    if ([string]::IsNullOrWhiteSpace($currentModel)) {
+        $currentModel = [string]$modelBox.Text
+    }
+
+    $modelBox.BeginUpdate()
+    try {
+        $modelBox.Items.Clear()
+        foreach ($id in $script:AllModelIds) {
+            if (Test-ModelMatchesFilter $id $FilterText) {
+                [void]$modelBox.Items.Add($id)
+            }
+        }
+
+        if ($modelBox.Items.Count -gt 0) {
+            if (-not [string]::IsNullOrWhiteSpace($currentModel) -and $modelBox.Items.Contains($currentModel)) {
+                $modelBox.SelectedItem = $currentModel
+            } else {
+                $modelBox.SelectedIndex = 0
+            }
+        } elseif (-not [string]::IsNullOrWhiteSpace($currentModel)) {
+            $modelBox.Text = $currentModel
+        } else {
+            $modelBox.Text = ""
+        }
+    } finally {
+        $modelBox.EndUpdate()
+    }
+}
+
 function Set-Status($Text, $ColorName = "DimGray") {
     $statusLabel.Text = $Text
     $statusLabel.ForeColor = [System.Drawing.Color]::$ColorName
@@ -101,6 +157,7 @@ function Refresh-Models {
 
     $refreshButton.Enabled = $false
     $modelBox.Items.Clear()
+    $modelSearchBox.Text = ""
     Set-Status "Fetching models..." "DarkOrange"
     Add-Log "Requesting $baseUrl/models"
 
@@ -133,18 +190,8 @@ function Refresh-Models {
             return
         }
 
-        foreach ($id in $ids) {
-            [void]$modelBox.Items.Add($id)
-        }
-
-        if ($modelBox.Items.Count -gt 0) {
-            $saved = $modelBox.Tag
-            if (-not [string]::IsNullOrWhiteSpace($saved) -and $modelBox.Items.Contains($saved)) {
-                $modelBox.SelectedItem = $saved
-            } else {
-                $modelBox.SelectedIndex = 0
-            }
-        }
+        Set-AllModels $ids
+        Update-ModelFilter "" ([string]$modelBox.Tag)
 
         Save-Config $baseUrl $apiKey ([string]$modelBox.SelectedItem) $clearKeyCheckBox.Checked $workingDirBox.Text.Trim()
         Set-Status "Fetched $($ids.Count) models" "SeaGreen"
@@ -409,14 +456,20 @@ $saveButton.Add_Click({ Save-Only })
 $form.Controls.Add($saveButton)
 
 $modelLabel = New-Object System.Windows.Forms.Label
-$modelLabel.Text = "Model selection"
+$modelLabel.Text = "Search / model selection"
 $modelLabel.Location = New-Object System.Drawing.Point(28, 252)
-$modelLabel.Size = New-Object System.Drawing.Size(200, 24)
+$modelLabel.Size = New-Object System.Drawing.Size(260, 24)
 $form.Controls.Add($modelLabel)
 
+$modelSearchBox = New-Object System.Windows.Forms.TextBox
+$modelSearchBox.Location = New-Object System.Drawing.Point(28, 278)
+$modelSearchBox.Size = New-Object System.Drawing.Size(260, 32)
+$modelSearchBox.Add_TextChanged({ Update-ModelFilter $modelSearchBox.Text ([string]$modelBox.Text) })
+$form.Controls.Add($modelSearchBox)
+
 $modelBox = New-Object System.Windows.Forms.ComboBox
-$modelBox.Location = New-Object System.Drawing.Point(28, 278)
-$modelBox.Size = New-Object System.Drawing.Size(548, 32)
+$modelBox.Location = New-Object System.Drawing.Point(300, 278)
+$modelBox.Size = New-Object System.Drawing.Size(276, 32)
 $modelBox.DropDownStyle = "DropDown"
 $modelBox.AutoCompleteMode = "SuggestAppend"
 $modelBox.AutoCompleteSource = "ListItems"

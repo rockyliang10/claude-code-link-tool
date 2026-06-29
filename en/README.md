@@ -12,7 +12,7 @@ This is a clean Windows launcher for non-technical users. Double-click it, enter
 2. Double-click `Open-AquaClaudeCode.cmd`.
 3. Enter your AquaCloud API key.
 4. Click `Fetch Models`.
-5. Pick a model from the dropdown.
+5. Type a keyword into the search box, such as `deepseek`, then pick a model from the filtered dropdown.
 6. Choose the `Claude Code working directory`.
 7. Optional: click `Doctor` to check the `claude` command, working directory, and AquaCloud `/models`.
 8. Click `Launch Claude Code`.

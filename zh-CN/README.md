@@ -12,7 +12,7 @@
 2. 双击 `打开AquaClaudeCode工具.cmd`。
 3. 输入 AquaCloud API Key。
 4. 点击“刷新模型”。
-5. 从“模型下拉选择”里选择模型。
+5. 在搜索框输入关键词过滤模型，例如 `deepseek`，再从“模型下拉选择”里选择模型。
 6. 在“Claude Code 工作目录”里选择你的项目目录。
 7. 可选：点击“诊断”，检查 `claude` 命令、工作目录和 AquaCloud `/models` 接口。
 8. 点击“连接 Claude Code”。
