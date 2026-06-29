@@ -158,6 +158,114 @@ function Refresh-Models {
     }
 }
 
+function Invoke-Doctor {
+    $baseUrl = Normalize-BaseUrl $baseUrlBox.Text
+    $apiKey = $keyBox.Text.Trim()
+    $model = [string]$modelBox.Text
+    $workingDirectory = Resolve-WorkingDirectory $workingDirBox.Text.Trim()
+    $results = New-Object System.Collections.Generic.List[string]
+    $hasError = $false
+    $hasWarning = $false
+
+    $doctorButton.Enabled = $false
+    Set-Status "Running checks..." "DarkOrange"
+    Add-Log "Starting configuration checks."
+
+    try {
+        try {
+            $uri = [System.Uri]$baseUrl
+            if ($uri.Scheme -notin @("http", "https")) {
+                throw "Base URL must start with http or https."
+            }
+            [void]$results.Add("OK: Base URL looks valid: $baseUrl")
+        } catch {
+            [void]$results.Add("Error: Base URL is invalid.")
+            $hasError = $true
+        }
+
+        $claudeCmd = Get-Command "claude" -ErrorAction SilentlyContinue
+        if ($claudeCmd) {
+            [void]$results.Add("OK: Found the claude command.")
+        } else {
+            [void]$results.Add("Error: The claude command was not found. Install Claude Code or add it to PATH.")
+            $hasError = $true
+        }
+
+        if ([string]::IsNullOrWhiteSpace($workingDirectory)) {
+            [void]$results.Add("Warning: No working directory is selected yet. Choose an existing folder before launching.")
+            $hasWarning = $true
+        } else {
+            [void]$results.Add("OK: Working directory exists: $workingDirectory")
+        }
+
+        if ([string]::IsNullOrWhiteSpace($apiKey)) {
+            [void]$results.Add("Warning: No API key is entered, so the API check was skipped.")
+            $hasWarning = $true
+        } else {
+            try {
+                $headers = @{
+                    Authorization = "Bearer $apiKey"
+                    Accept = "application/json"
+                }
+                $response = Invoke-RestMethod -Method Get -Uri "$baseUrl/models" -Headers $headers -TimeoutSec 45
+                $items = @()
+                if ($response.data) {
+                    $items = @($response.data)
+                } elseif ($response.models) {
+                    $items = @($response.models)
+                } elseif ($response -is [array]) {
+                    $items = @($response)
+                }
+
+                $ids = New-Object System.Collections.Generic.List[string]
+                foreach ($item in $items) {
+                    $id = Get-ModelId $item
+                    if (-not [string]::IsNullOrWhiteSpace($id) -and -not $ids.Contains($id)) {
+                        [void]$ids.Add($id)
+                    }
+                }
+
+                if ($ids.Count -gt 0) {
+                    [void]$results.Add("OK: /models is reachable and returned $($ids.Count) models.")
+                    if (-not [string]::IsNullOrWhiteSpace($model)) {
+                        if ($ids.Contains($model)) {
+                            [void]$results.Add("OK: The selected model appears in the model list.")
+                        } else {
+                            [void]$results.Add("Warning: The selected model was not found in /models. Confirm the model ID is still available.")
+                            $hasWarning = $true
+                        }
+                    } else {
+                        [void]$results.Add("Warning: No model is selected yet. Select or type a model ID before launching.")
+                        $hasWarning = $true
+                    }
+                } else {
+                    [void]$results.Add("Warning: /models succeeded, but no model ID could be parsed.")
+                    $hasWarning = $true
+                }
+            } catch {
+                [void]$results.Add("Error: /models check failed: $($_.Exception.Message)")
+                $hasError = $true
+            }
+        }
+
+        foreach ($line in $results) {
+            Add-Log $line
+        }
+
+        if ($hasError) {
+            Set-Status "Checks found errors" "Firebrick"
+        } elseif ($hasWarning) {
+            Set-Status "Checks completed with notes" "DarkOrange"
+        } else {
+            Set-Status "Checks passed" "SeaGreen"
+        }
+
+        [System.Windows.Forms.MessageBox]::Show(($results -join "`r`n"), "Doctor Results", "OK", $(if ($hasError) { "Error" } elseif ($hasWarning) { "Warning" } else { "Information" })) | Out-Null
+    } finally {
+        $doctorButton.Enabled = $true
+    }
+}
+
 function Start-Claude {
     $baseUrl = Normalize-BaseUrl $baseUrlBox.Text
     $apiKey = $keyBox.Text.Trim()
@@ -187,12 +295,6 @@ function Start-Claude {
     }
 
     $launchScript = @"
-`$env:ANTHROPIC_BASE_URL = '$($baseUrl.Replace("'", "''"))'
-`$env:ANTHROPIC_AUTH_TOKEN = '$($apiKey.Replace("'", "''"))'
-`$env:ANTHROPIC_MODEL = '$($model.Replace("'", "''"))'
-`$env:NO_PROXY = '127.0.0.1,localhost'
-Set-Location -LiteralPath '$($workingDirectory.Replace("'", "''"))'
-Remove-Item -LiteralPath `$PSCommandPath -Force -ErrorAction SilentlyContinue
 Write-Host 'AquaCloud -> Claude Code'
 Write-Host ('Base URL: ' + `$env:ANTHROPIC_BASE_URL)
 Write-Host ('Model: ' + `$env:ANTHROPIC_MODEL)
@@ -200,11 +302,20 @@ Write-Host ('Working directory: ' + (Get-Location).Path)
 claude
 Read-Host 'Claude Code has exited. Press Enter to close this window.'
 "@
-    $tempPath = Join-Path $AppDir ("aqua-claude-launch-{0}.tmp.ps1" -f ([guid]::NewGuid().ToString("N")))
-    Set-Content -LiteralPath $tempPath -Value $launchScript -Encoding UTF8
+    $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($launchScript))
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = "powershell.exe"
+    $startInfo.WorkingDirectory = $workingDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $false
+    $startInfo.Arguments = "-NoExit -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
+    $startInfo.EnvironmentVariables["ANTHROPIC_BASE_URL"] = $baseUrl
+    $startInfo.EnvironmentVariables["ANTHROPIC_AUTH_TOKEN"] = $apiKey
+    $startInfo.EnvironmentVariables["ANTHROPIC_MODEL"] = $model
+    $startInfo.EnvironmentVariables["NO_PROXY"] = "127.0.0.1,localhost"
 
     Add-Log "Starting Claude Code with model: $model, directory: $workingDirectory"
-    Start-Process -FilePath "powershell.exe" -WorkingDirectory $workingDirectory -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", "`"$tempPath`"")
+    [void][System.Diagnostics.Process]::Start($startInfo)
 }
 
 function Save-Only {
@@ -341,9 +452,16 @@ $startButton = New-Object System.Windows.Forms.Button
 $startButton.Text = "Launch Claude Code"
 $startButton.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 11, [System.Drawing.FontStyle]::Bold)
 $startButton.Location = New-Object System.Drawing.Point(28, 408)
-$startButton.Size = New-Object System.Drawing.Size(690, 46)
+$startButton.Size = New-Object System.Drawing.Size(548, 46)
 $startButton.Add_Click({ Start-Claude })
 $form.Controls.Add($startButton)
+
+$doctorButton = New-Object System.Windows.Forms.Button
+$doctorButton.Text = "Doctor"
+$doctorButton.Location = New-Object System.Drawing.Point(590, 408)
+$doctorButton.Size = New-Object System.Drawing.Size(128, 46)
+$doctorButton.Add_Click({ Invoke-Doctor })
+$form.Controls.Add($doctorButton)
 
 $clearKeyCheckBox = New-Object System.Windows.Forms.CheckBox
 $clearKeyCheckBox.Text = "Clear key when closing (recommended)"

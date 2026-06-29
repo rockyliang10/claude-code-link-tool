@@ -158,6 +158,114 @@ function Refresh-Models {
     }
 }
 
+function Invoke-Doctor {
+    $baseUrl = Normalize-BaseUrl $baseUrlBox.Text
+    $apiKey = $keyBox.Text.Trim()
+    $model = [string]$modelBox.Text
+    $workingDirectory = Resolve-WorkingDirectory $workingDirBox.Text.Trim()
+    $results = New-Object System.Collections.Generic.List[string]
+    $hasError = $false
+    $hasWarning = $false
+
+    $doctorButton.Enabled = $false
+    Set-Status "正在诊断..." "DarkOrange"
+    Add-Log "开始诊断当前配置。"
+
+    try {
+        try {
+            $uri = [System.Uri]$baseUrl
+            if ($uri.Scheme -notin @("http", "https")) {
+                throw "Base URL 必须以 http 或 https 开头。"
+            }
+            [void]$results.Add("OK: Base URL 格式正常：$baseUrl")
+        } catch {
+            [void]$results.Add("错误: Base URL 无效。")
+            $hasError = $true
+        }
+
+        $claudeCmd = Get-Command "claude" -ErrorAction SilentlyContinue
+        if ($claudeCmd) {
+            [void]$results.Add("OK: 已找到 claude 命令。")
+        } else {
+            [void]$results.Add("错误: 没有找到 claude 命令，请先安装 Claude Code 或加入 PATH。")
+            $hasError = $true
+        }
+
+        if ([string]::IsNullOrWhiteSpace($workingDirectory)) {
+            [void]$results.Add("警告: 工作目录还没有选择，连接前需要选择一个存在的目录。")
+            $hasWarning = $true
+        } else {
+            [void]$results.Add("OK: 工作目录存在：$workingDirectory")
+        }
+
+        if ([string]::IsNullOrWhiteSpace($apiKey)) {
+            [void]$results.Add("警告: 还没有输入 API Key，已跳过接口检查。")
+            $hasWarning = $true
+        } else {
+            try {
+                $headers = @{
+                    Authorization = "Bearer $apiKey"
+                    Accept = "application/json"
+                }
+                $response = Invoke-RestMethod -Method Get -Uri "$baseUrl/models" -Headers $headers -TimeoutSec 45
+                $items = @()
+                if ($response.data) {
+                    $items = @($response.data)
+                } elseif ($response.models) {
+                    $items = @($response.models)
+                } elseif ($response -is [array]) {
+                    $items = @($response)
+                }
+
+                $ids = New-Object System.Collections.Generic.List[string]
+                foreach ($item in $items) {
+                    $id = Get-ModelId $item
+                    if (-not [string]::IsNullOrWhiteSpace($id) -and -not $ids.Contains($id)) {
+                        [void]$ids.Add($id)
+                    }
+                }
+
+                if ($ids.Count -gt 0) {
+                    [void]$results.Add("OK: /models 可访问，读到 $($ids.Count) 个模型。")
+                    if (-not [string]::IsNullOrWhiteSpace($model)) {
+                        if ($ids.Contains($model)) {
+                            [void]$results.Add("OK: 当前模型在模型列表中。")
+                        } else {
+                            [void]$results.Add("警告: 当前模型没有出现在 /models 返回中，可手动确认模型 ID 是否仍可用。")
+                            $hasWarning = $true
+                        }
+                    } else {
+                        [void]$results.Add("警告: 还没有选择模型，连接前需要选择或手动输入模型 ID。")
+                        $hasWarning = $true
+                    }
+                } else {
+                    [void]$results.Add("警告: /models 请求成功，但没有解析出模型 ID。")
+                    $hasWarning = $true
+                }
+            } catch {
+                [void]$results.Add("错误: /models 检查失败：$($_.Exception.Message)")
+                $hasError = $true
+            }
+        }
+
+        foreach ($line in $results) {
+            Add-Log $line
+        }
+
+        if ($hasError) {
+            Set-Status "诊断发现错误" "Firebrick"
+        } elseif ($hasWarning) {
+            Set-Status "诊断完成，有提醒" "DarkOrange"
+        } else {
+            Set-Status "诊断通过" "SeaGreen"
+        }
+
+        [System.Windows.Forms.MessageBox]::Show(($results -join "`r`n"), "诊断结果", "OK", $(if ($hasError) { "Error" } elseif ($hasWarning) { "Warning" } else { "Information" })) | Out-Null
+    } finally {
+        $doctorButton.Enabled = $true
+    }
+}
+
 function Start-Claude {
     $baseUrl = Normalize-BaseUrl $baseUrlBox.Text
     $apiKey = $keyBox.Text.Trim()
@@ -187,12 +295,6 @@ function Start-Claude {
     }
 
     $launchScript = @"
-`$env:ANTHROPIC_BASE_URL = '$($baseUrl.Replace("'", "''"))'
-`$env:ANTHROPIC_AUTH_TOKEN = '$($apiKey.Replace("'", "''"))'
-`$env:ANTHROPIC_MODEL = '$($model.Replace("'", "''"))'
-`$env:NO_PROXY = '127.0.0.1,localhost'
-Set-Location -LiteralPath '$($workingDirectory.Replace("'", "''"))'
-Remove-Item -LiteralPath `$PSCommandPath -Force -ErrorAction SilentlyContinue
 Write-Host 'AquaCloud -> Claude Code'
 Write-Host ('Base URL: ' + `$env:ANTHROPIC_BASE_URL)
 Write-Host ('Model: ' + `$env:ANTHROPIC_MODEL)
@@ -200,11 +302,20 @@ Write-Host ('Working directory: ' + (Get-Location).Path)
 claude
 Read-Host 'Claude Code 已退出，按回车关闭窗口'
 "@
-    $tempPath = Join-Path $AppDir ("aqua-claude-launch-{0}.tmp.ps1" -f ([guid]::NewGuid().ToString("N")))
-    Set-Content -LiteralPath $tempPath -Value $launchScript -Encoding UTF8
+    $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($launchScript))
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = "powershell.exe"
+    $startInfo.WorkingDirectory = $workingDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $false
+    $startInfo.Arguments = "-NoExit -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
+    $startInfo.EnvironmentVariables["ANTHROPIC_BASE_URL"] = $baseUrl
+    $startInfo.EnvironmentVariables["ANTHROPIC_AUTH_TOKEN"] = $apiKey
+    $startInfo.EnvironmentVariables["ANTHROPIC_MODEL"] = $model
+    $startInfo.EnvironmentVariables["NO_PROXY"] = "127.0.0.1,localhost"
 
     Add-Log "启动 Claude Code，模型：$model，目录：$workingDirectory"
-    Start-Process -FilePath "powershell.exe" -WorkingDirectory $workingDirectory -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", "`"$tempPath`"")
+    [void][System.Diagnostics.Process]::Start($startInfo)
 }
 
 function Save-Only {
@@ -341,9 +452,16 @@ $startButton = New-Object System.Windows.Forms.Button
 $startButton.Text = "连接 Claude Code"
 $startButton.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 11, [System.Drawing.FontStyle]::Bold)
 $startButton.Location = New-Object System.Drawing.Point(28, 408)
-$startButton.Size = New-Object System.Drawing.Size(690, 46)
+$startButton.Size = New-Object System.Drawing.Size(548, 46)
 $startButton.Add_Click({ Start-Claude })
 $form.Controls.Add($startButton)
+
+$doctorButton = New-Object System.Windows.Forms.Button
+$doctorButton.Text = "诊断"
+$doctorButton.Location = New-Object System.Drawing.Point(590, 408)
+$doctorButton.Size = New-Object System.Drawing.Size(128, 46)
+$doctorButton.Add_Click({ Invoke-Doctor })
+$form.Controls.Add($doctorButton)
 
 $clearKeyCheckBox = New-Object System.Windows.Forms.CheckBox
 $clearKeyCheckBox.Text = "关闭窗口时清除 Key（推荐）"

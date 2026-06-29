@@ -14,9 +14,18 @@
 4. 点击“刷新模型”。
 5. 从“模型下拉选择”里选择模型。
 6. 在“Claude Code 工作目录”里选择你的项目目录。
-7. 点击“连接 Claude Code”。
+7. 可选：点击“诊断”，检查 `claude` 命令、工作目录和 AquaCloud `/models` 接口。
+8. 点击“连接 Claude Code”。
 
 默认勾选“关闭窗口时清除 Key（推荐）”。关闭工具后，本地配置文件不会保留 API Key。
+
+启动 Claude Code 时，工具会把 Key 只传给新开的 Claude Code 子进程环境变量，不会再生成包含 Key 的临时 `.ps1` 启动脚本。
+
+## 兼容性说明
+
+这个工具会设置 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 和 `ANTHROPIC_MODEL` 后启动 Claude Code。
+
+“诊断”只检查本机配置和 AquaCloud `/models`，不会消耗模型 token，也不等于证明上游网关完整支持 Claude Code 的所有协议能力。如果启动后 Claude Code 报 `/v1/messages`、streaming、tool use 或 token counting 相关错误，需要改用专门的 Claude Code router/proxy 做协议转换。
 
 ## 会保存什么
 

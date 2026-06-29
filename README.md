@@ -18,7 +18,9 @@
 - 拉取并选择可用模型
 - 自主选择 Claude Code 启动后的工作目录
 - 一键启动 Claude Code
+- 一键诊断本机 `claude` 命令、工作目录和 AquaCloud `/models` 接口
 - 默认关闭窗口时清除 API Key
+- 启动 Claude Code 时通过子进程环境变量传递 API Key，不再生成含 Key 的临时启动脚本
 
 ## Requirements
 
@@ -26,6 +28,22 @@
 - PowerShell 5+
 - Claude Code installed and available as `claude` in PATH
 - AquaCloud API key
+
+## Compatibility Notes
+
+This launcher sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_MODEL` before starting Claude Code.
+
+The built-in Doctor checks local setup and AquaCloud `/models`. It does not spend tokens and does not prove that every Claude Code protocol feature is supported by the upstream gateway. If Claude Code reports `/v1/messages`, streaming, tool use, or token-counting errors after launch, use a dedicated Claude Code router/proxy mode for protocol translation.
+
+## Release
+
+Release zips can be rebuilt from this clean repository:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
+```
+
+The script writes language-specific zip files to `..\release-assets` and prints SHA256 hashes.
 
 ## Clean Release Notes
 
