@@ -18,6 +18,7 @@
 - 拉取并选择可用模型
 - 搜索过滤模型列表，适合模型数量很多的账号
 - 自主选择 Claude Code 启动后的工作目录
+- 启动前把模板目录里的 Claude Skills 同步到当前工作目录
 - 一键启动 Claude Code
 - 一键诊断本机 `claude` 命令、工作目录和 AquaCloud `/models` 接口
 - 默认关闭窗口时清除 API Key
@@ -35,6 +36,18 @@
 This launcher sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_MODEL` before starting Claude Code.
 
 The built-in Doctor checks local setup and AquaCloud `/models`. It does not spend tokens and does not prove that every Claude Code protocol feature is supported by the upstream gateway. If Claude Code reports `/v1/messages`, streaming, tool use, or token-counting errors after launch, use a dedicated Claude Code router/proxy mode for protocol translation.
+
+## Skills Sync
+
+The launcher can copy reusable Claude Skills from a template `.claude` directory into the selected working directory before launch.
+
+It copies:
+
+- `.claude/skills`
+- `.claude/settings.json` only when the target does not already have one
+- `.claude/plugins` only when installed plugins are explicitly recorded
+
+It does not overwrite existing files and does not copy session history, project logs, caches, or telemetry.
 
 ## Release
 

@@ -33,6 +33,55 @@ function Resolve-WorkingDirectory($Value) {
     return $null
 }
 
+function Get-DefaultClaudeTemplateDirectory {
+    $candidates = @(
+        (Join-Path $AppDir ".claude"),
+        (Join-Path $env:USERPROFILE "Desktop\6.27\.claude"),
+        (Join-Path $env:USERPROFILE ".claude")
+    )
+
+    foreach ($candidate in $candidates) {
+        if ((Test-Path -LiteralPath $candidate -PathType Container) -and (Test-Path -LiteralPath (Join-Path $candidate "skills") -PathType Container)) {
+            return (Resolve-Path -LiteralPath $candidate).ProviderPath
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Container) {
+            return (Resolve-Path -LiteralPath $candidate).ProviderPath
+        }
+    }
+
+    return ""
+}
+
+function Resolve-ClaudeTemplateDirectory($Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    try {
+        $resolved = (Resolve-Path -LiteralPath $Value.Trim() -ErrorAction Stop).ProviderPath
+        if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
+            return $null
+        }
+
+        $leaf = Split-Path -Leaf $resolved
+        if ($leaf -eq ".claude") {
+            return $resolved
+        }
+
+        $nested = Join-Path $resolved ".claude"
+        if (Test-Path -LiteralPath $nested -PathType Container) {
+            return (Resolve-Path -LiteralPath $nested).ProviderPath
+        }
+    } catch {
+        return $null
+    }
+
+    return $null
+}
+
 function Read-Config {
     if (Test-Path -LiteralPath $ConfigPath) {
         try {
@@ -44,7 +93,7 @@ function Read-Config {
     return $null
 }
 
-function Save-Config($BaseUrl, $ApiKey, $Model, $ClearKeyOnClose = $true, $WorkingDirectory = "") {
+function Save-Config($BaseUrl, $ApiKey, $Model, $ClearKeyOnClose = $true, $WorkingDirectory = "", $SyncSkills = $true, $SkillSourceDirectory = "") {
     $keyToSave = ""
     if (-not $ClearKeyOnClose) {
         $keyToSave = $ApiKey
@@ -54,6 +103,8 @@ function Save-Config($BaseUrl, $ApiKey, $Model, $ClearKeyOnClose = $true, $Worki
         apiKey = $keyToSave
         model = $Model
         workingDirectory = $WorkingDirectory
+        syncSkills = [bool]$SyncSkills
+        skillSourceDirectory = $SkillSourceDirectory
         clearKeyOnClose = [bool]$ClearKeyOnClose
         updatedAt = (Get-Date).ToString("s")
     }
@@ -146,6 +197,92 @@ function Add-Log($Text) {
     $logBox.ScrollToCaret()
 }
 
+function Copy-DirectoryNoOverwrite($SourceDirectory, $TargetDirectory) {
+    if (-not (Test-Path -LiteralPath $SourceDirectory -PathType Container)) {
+        return 0
+    }
+
+    if (-not (Test-Path -LiteralPath $TargetDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $TargetDirectory | Out-Null
+    }
+
+    $sourceRoot = (Resolve-Path -LiteralPath $SourceDirectory).ProviderPath.TrimEnd("\")
+    Get-ChildItem -LiteralPath $SourceDirectory -Recurse -Force | ForEach-Object {
+        $relativePath = $_.FullName.Substring($sourceRoot.Length).TrimStart("\")
+        $targetPath = Join-Path $TargetDirectory $relativePath
+
+        if ($_.PSIsContainer) {
+            if (-not (Test-Path -LiteralPath $targetPath -PathType Container)) {
+                New-Item -ItemType Directory -Path $targetPath | Out-Null
+            }
+        } elseif (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+            $parent = Split-Path -Parent $targetPath
+            if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+                New-Item -ItemType Directory -Path $parent | Out-Null
+            }
+            Copy-Item -LiteralPath $_.FullName -Destination $targetPath
+            $script:SyncCopiedCount++
+        }
+    }
+
+    return $script:SyncCopiedCount
+}
+
+function Test-InstalledPluginsPresent($ClaudeDirectory) {
+    $installedPath = Join-Path $ClaudeDirectory "plugins\installed_plugins.json"
+    if (-not (Test-Path -LiteralPath $installedPath -PathType Leaf)) {
+        return $false
+    }
+
+    try {
+        $installed = Get-Content -LiteralPath $installedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        return ($installed.plugins.PSObject.Properties.Count -gt 0)
+    } catch {
+        return $false
+    }
+}
+
+function Sync-ClaudeSkills($WorkingDirectory, $SourceClaudeDirectory) {
+    $sourceClaude = Resolve-ClaudeTemplateDirectory $SourceClaudeDirectory
+    if ([string]::IsNullOrWhiteSpace($sourceClaude)) {
+        throw "The skill template directory is invalid. Choose a project folder that contains .claude, or choose the .claude folder directly."
+    }
+
+    $targetClaude = Join-Path $WorkingDirectory ".claude"
+    $resolvedTarget = $null
+    if (Test-Path -LiteralPath $targetClaude -PathType Container) {
+        $resolvedTarget = (Resolve-Path -LiteralPath $targetClaude).ProviderPath
+    }
+    if ($resolvedTarget -and ($resolvedTarget -eq $sourceClaude)) {
+        Add-Log "The skill template and working directory are the same. Sync skipped."
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $targetClaude -PathType Container)) {
+        New-Item -ItemType Directory -Path $targetClaude | Out-Null
+    }
+
+    $script:SyncCopiedCount = 0
+    $sourceSkills = Join-Path $sourceClaude "skills"
+    $targetSkills = Join-Path $targetClaude "skills"
+    [void](Copy-DirectoryNoOverwrite $sourceSkills $targetSkills)
+
+    $sourceSettings = Join-Path $sourceClaude "settings.json"
+    $targetSettings = Join-Path $targetClaude "settings.json"
+    if ((Test-Path -LiteralPath $sourceSettings -PathType Leaf) -and -not (Test-Path -LiteralPath $targetSettings -PathType Leaf)) {
+        Copy-Item -LiteralPath $sourceSettings -Destination $targetSettings
+        $script:SyncCopiedCount++
+    }
+
+    if (Test-InstalledPluginsPresent $sourceClaude) {
+        $sourcePlugins = Join-Path $sourceClaude "plugins"
+        $targetPlugins = Join-Path $targetClaude "plugins"
+        [void](Copy-DirectoryNoOverwrite $sourcePlugins $targetPlugins)
+    }
+
+    Add-Log "Skill sync completed: $script:SyncCopiedCount new files."
+}
+
 function Refresh-Models {
     $baseUrl = Normalize-BaseUrl $baseUrlBox.Text
     $apiKey = $keyBox.Text.Trim()
@@ -193,7 +330,7 @@ function Refresh-Models {
         Set-AllModels $ids
         Update-ModelFilter "" ([string]$modelBox.Tag)
 
-        Save-Config $baseUrl $apiKey ([string]$modelBox.SelectedItem) $clearKeyCheckBox.Checked $workingDirBox.Text.Trim()
+        Save-Config $baseUrl $apiKey ([string]$modelBox.SelectedItem) $clearKeyCheckBox.Checked $workingDirBox.Text.Trim() $syncSkillsCheckBox.Checked $skillSourceBox.Text.Trim()
         Set-Status "Fetched $($ids.Count) models" "SeaGreen"
         Add-Log "Fetched $($ids.Count) models."
     } catch {
@@ -333,12 +470,23 @@ function Start-Claude {
     }
 
     $workingDirBox.Text = $workingDirectory
-    Save-Config $baseUrl $apiKey $model $clearKeyCheckBox.Checked $workingDirectory
+    Save-Config $baseUrl $apiKey $model $clearKeyCheckBox.Checked $workingDirectory $syncSkillsCheckBox.Checked $skillSourceBox.Text.Trim()
 
     $claudeCmd = Get-Command "claude" -ErrorAction SilentlyContinue
     if (-not $claudeCmd) {
         [System.Windows.Forms.MessageBox]::Show("The claude command was not found. Install Claude Code first, or make sure claude is in PATH.", "Claude Code Not Found", "OK", "Error") | Out-Null
         return
+    }
+
+    if ($syncSkillsCheckBox.Checked) {
+        try {
+            Sync-ClaudeSkills $workingDirectory $skillSourceBox.Text.Trim()
+        } catch {
+            Set-Status "Skill sync failed" "Firebrick"
+            Add-Log "Skill sync failed: $($_.Exception.Message)"
+            [System.Windows.Forms.MessageBox]::Show("Skill sync failed: $($_.Exception.Message)`r`n`r`nThis launch was cancelled to avoid starting in a folder without the expected skills.", "Skill Sync Failed", "OK", "Error") | Out-Null
+            return
+        }
     }
 
     $launchScript = @"
@@ -367,7 +515,7 @@ Read-Host 'Claude Code has exited. Press Enter to close this window.'
 
 function Save-Only {
     $model = [string]$modelBox.Text
-    Save-Config (Normalize-BaseUrl $baseUrlBox.Text) $keyBox.Text.Trim() $model $clearKeyCheckBox.Checked $workingDirBox.Text.Trim()
+    Save-Config (Normalize-BaseUrl $baseUrlBox.Text) $keyBox.Text.Trim() $model $clearKeyCheckBox.Checked $workingDirBox.Text.Trim() $syncSkillsCheckBox.Checked $skillSourceBox.Text.Trim()
     Set-Status "Saved" "SeaGreen"
     if ($clearKeyCheckBox.Checked) {
         Add-Log "Settings saved. The key will not be written to the local config file."
@@ -393,11 +541,35 @@ function Select-WorkingDirectory {
     $dialog.Dispose()
 }
 
+function Select-SkillSourceDirectory {
+    $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dialog.Description = "Choose the skill template folder: an existing project folder, or the .claude folder directly"
+    $current = Resolve-ClaudeTemplateDirectory $skillSourceBox.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($current)) {
+        $current = Get-DefaultClaudeTemplateDirectory
+    }
+    if (-not [string]::IsNullOrWhiteSpace($current)) {
+        $dialog.SelectedPath = $current
+    }
+
+    if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        $resolved = Resolve-ClaudeTemplateDirectory $dialog.SelectedPath
+        if ([string]::IsNullOrWhiteSpace($resolved)) {
+            [System.Windows.Forms.MessageBox]::Show("Choose an existing project folder, or choose the .claude folder directly.", "Invalid Folder", "OK", "Warning") | Out-Null
+        } else {
+            $skillSourceBox.Text = $resolved
+            Add-Log "Selected skill template: $resolved"
+        }
+    }
+
+    $dialog.Dispose()
+}
+
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Aqua Claude Code One-Click Launcher"
 $form.StartPosition = "CenterScreen"
-$form.Size = New-Object System.Drawing.Size(760, 650)
-$form.MinimumSize = New-Object System.Drawing.Size(720, 610)
+$form.Size = New-Object System.Drawing.Size(760, 760)
+$form.MinimumSize = New-Object System.Drawing.Size(720, 720)
 $form.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
 
 $title = New-Object System.Windows.Forms.Label
@@ -501,17 +673,43 @@ $browseDirButton.Size = New-Object System.Drawing.Size(128, 32)
 $browseDirButton.Add_Click({ Select-WorkingDirectory })
 $form.Controls.Add($browseDirButton)
 
+$syncSkillsCheckBox = New-Object System.Windows.Forms.CheckBox
+$syncSkillsCheckBox.Text = "Sync Skills before launch (recommended)"
+$syncSkillsCheckBox.Checked = $true
+$syncSkillsCheckBox.Location = New-Object System.Drawing.Point(28, 398)
+$syncSkillsCheckBox.Size = New-Object System.Drawing.Size(320, 28)
+$form.Controls.Add($syncSkillsCheckBox)
+
+$skillSourceLabel = New-Object System.Windows.Forms.Label
+$skillSourceLabel.Text = "Skill template folder (project or .claude)"
+$skillSourceLabel.Location = New-Object System.Drawing.Point(28, 430)
+$skillSourceLabel.Size = New-Object System.Drawing.Size(360, 24)
+$form.Controls.Add($skillSourceLabel)
+
+$skillSourceBox = New-Object System.Windows.Forms.TextBox
+$skillSourceBox.Location = New-Object System.Drawing.Point(28, 456)
+$skillSourceBox.Size = New-Object System.Drawing.Size(548, 30)
+$skillSourceBox.Text = Get-DefaultClaudeTemplateDirectory
+$form.Controls.Add($skillSourceBox)
+
+$browseSkillSourceButton = New-Object System.Windows.Forms.Button
+$browseSkillSourceButton.Text = "Browse"
+$browseSkillSourceButton.Location = New-Object System.Drawing.Point(590, 455)
+$browseSkillSourceButton.Size = New-Object System.Drawing.Size(128, 32)
+$browseSkillSourceButton.Add_Click({ Select-SkillSourceDirectory })
+$form.Controls.Add($browseSkillSourceButton)
+
 $startButton = New-Object System.Windows.Forms.Button
 $startButton.Text = "Launch Claude Code"
 $startButton.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 11, [System.Drawing.FontStyle]::Bold)
-$startButton.Location = New-Object System.Drawing.Point(28, 408)
+$startButton.Location = New-Object System.Drawing.Point(28, 506)
 $startButton.Size = New-Object System.Drawing.Size(548, 46)
 $startButton.Add_Click({ Start-Claude })
 $form.Controls.Add($startButton)
 
 $doctorButton = New-Object System.Windows.Forms.Button
 $doctorButton.Text = "Doctor"
-$doctorButton.Location = New-Object System.Drawing.Point(590, 408)
+$doctorButton.Location = New-Object System.Drawing.Point(590, 506)
 $doctorButton.Size = New-Object System.Drawing.Size(128, 46)
 $doctorButton.Add_Click({ Invoke-Doctor })
 $form.Controls.Add($doctorButton)
@@ -519,19 +717,19 @@ $form.Controls.Add($doctorButton)
 $clearKeyCheckBox = New-Object System.Windows.Forms.CheckBox
 $clearKeyCheckBox.Text = "Clear key when closing (recommended)"
 $clearKeyCheckBox.Checked = $true
-$clearKeyCheckBox.Location = New-Object System.Drawing.Point(28, 462)
+$clearKeyCheckBox.Location = New-Object System.Drawing.Point(28, 560)
 $clearKeyCheckBox.Size = New-Object System.Drawing.Size(260, 28)
 $form.Controls.Add($clearKeyCheckBox)
 
 $statusLabel = New-Object System.Windows.Forms.Label
 $statusLabel.Text = "Waiting for settings"
 $statusLabel.ForeColor = [System.Drawing.Color]::DimGray
-$statusLabel.Location = New-Object System.Drawing.Point(300, 466)
+$statusLabel.Location = New-Object System.Drawing.Point(300, 564)
 $statusLabel.Size = New-Object System.Drawing.Size(690, 24)
 $form.Controls.Add($statusLabel)
 
 $logBox = New-Object System.Windows.Forms.TextBox
-$logBox.Location = New-Object System.Drawing.Point(28, 500)
+$logBox.Location = New-Object System.Drawing.Point(28, 598)
 $logBox.Size = New-Object System.Drawing.Size(690, 76)
 $logBox.Multiline = $true
 $logBox.ScrollBars = "Vertical"
@@ -558,12 +756,18 @@ if ($config) {
             $workingDirBox.Text = $savedWorkingDirectory
         }
     }
+    if ($null -ne $config.syncSkills) {
+        $syncSkillsCheckBox.Checked = [bool]$config.syncSkills
+    }
+    if ($config.skillSourceDirectory) {
+        $skillSourceBox.Text = [string]$config.skillSourceDirectory
+    }
     Add-Log "Loaded local settings."
 }
 
 $form.Add_FormClosing({
     if ($clearKeyCheckBox.Checked) {
-        Save-Config (Normalize-BaseUrl $baseUrlBox.Text) "" ([string]$modelBox.Text) $true $workingDirBox.Text.Trim()
+        Save-Config (Normalize-BaseUrl $baseUrlBox.Text) "" ([string]$modelBox.Text) $true $workingDirBox.Text.Trim() $syncSkillsCheckBox.Checked $skillSourceBox.Text.Trim()
         $keyBox.Text = ""
     }
 })
