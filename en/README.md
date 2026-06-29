@@ -1,10 +1,10 @@
-# Aqua Claude Code One-Click Launcher
+# Claude Code Link Tool for AquaCloud
 
-This is a clean Windows launcher for non-technical users. Double-click it, enter an AquaCloud API key, fetch models, choose a working directory, and launch Claude Code in that folder.
+This Windows launcher connects AquaCloud-compatible models to Claude Code and provides model selection, working-directory launch, diagnostics, and reusable Skills synchronization.
 
 ## Download
 
-[Download latest English version](https://github.com/PH110110/claude-code-/releases/latest/download/AquaClaudeCode-en.zip)
+[Download latest English version](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-en.zip)
 
 ## How To Use
 
@@ -51,4 +51,4 @@ It does not overwrite existing files and does not copy session history, project 
 
 ## Clean Release
 
-This folder contains only the launcher script, the command file, and this README. Local config and temporary launch files are ignored by Git.
+The English package contains only the launcher script, the command file, and this README. Local config and temporary launch files are ignored by Git.

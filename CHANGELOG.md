@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Moved documentation and direct download links to the company repository.
 - Added a Doctor check for the local `claude` command, selected working directory, and AquaCloud `/models`.
 - Added searchable model filtering for accounts with many AquaCloud models.
 - Added optional pre-launch Claude Skills sync from a template `.claude` directory.

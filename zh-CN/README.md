@@ -1,10 +1,10 @@
-# Aqua Claude Code 一键连接工具
+# Claude Code Link Tool for AquaCloud
 
-这是给非技术用户使用的 Windows 纯净版小工具：双击打开，输入 AquaCloud Key，刷新模型，选择工作目录，然后在该目录中启动 Claude Code。
+这是一个面向 Windows 用户的 Claude Code 启动工具，用于把 AquaCloud 兼容模型接入 Claude Code，并提供模型选择、工作目录启动、诊断检查和可复用 Skills 同步。
 
 ## 下载
 
-[下载最新版中文包](https://github.com/PH110110/claude-code-/releases/latest/download/AquaClaudeCode-zh-CN.zip)
+[下载最新版中文包](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-zh-CN.zip)
 
 ## 使用方法
 
@@ -51,4 +51,4 @@
 
 ## 纯净版说明
 
-这个目录只包含启动脚本、双击入口和说明文档。本地配置文件、临时启动脚本、真实 Key 都会被 Git 忽略。
+中文包只包含启动脚本、双击入口和说明文档。本地配置文件、临时启动脚本、真实 Key 都会被 Git 忽略。

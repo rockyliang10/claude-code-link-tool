@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$outputDir = Join-Path (Split-Path -Parent $repoRoot) "release-assets"
+$outputDir = Join-Path $repoRoot "downloads"
 
 if (-not (Test-Path -LiteralPath $outputDir -PathType Container)) {
     New-Item -ItemType Directory -Path $outputDir | Out-Null

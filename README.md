@@ -1,28 +1,26 @@
-# Aqua Claude Code Launcher
+# Claude Code Link Tool for AquaCloud
 
-中文 / English bilingual clean release for connecting AquaCloud models to Claude Code on Windows.
+A Windows launcher that connects AquaCloud-compatible models to Claude Code with a simple GUI for model selection, project launch, diagnostics, and reusable Skills synchronization.
 
-## 下载 / Download
+## Quick Download
 
-- 中文版：[Download latest zh-CN](https://github.com/PH110110/claude-code-/releases/latest/download/AquaClaudeCode-zh-CN.zip)
-- English: [Download latest en](https://github.com/PH110110/claude-code-/releases/latest/download/AquaClaudeCode-en.zip)
+- 中文版：[Download AquaClaudeCode-zh-CN.zip](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-zh-CN.zip)
+- English: [Download AquaClaudeCode-en.zip](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-en.zip)
 
 下载后解压：
 
 - 中文版：双击 `打开AquaClaudeCode工具.cmd`
 - English: double-click `Open-AquaClaudeCode.cmd`
 
-## 功能 / Features
+## What It Does
 
-- 输入 AquaCloud API Key
-- 拉取并选择可用模型
-- 搜索过滤模型列表，适合模型数量很多的账号
-- 自主选择 Claude Code 启动后的工作目录
-- 启动前把模板目录里的 Claude Skills 同步到当前工作目录
-- 一键启动 Claude Code
-- 一键诊断本机 `claude` 命令、工作目录和 AquaCloud `/models` 接口
-- 默认关闭窗口时清除 API Key
-- 启动 Claude Code 时通过子进程环境变量传递 API Key，不再生成含 Key 的临时启动脚本
+- Starts Claude Code with AquaCloud endpoint, API key, and selected model.
+- Fetches available models from AquaCloud and filters them with a searchable selector.
+- Lets users choose the Claude Code working directory before launch.
+- Optionally syncs reusable Claude Skills from a selected template `.claude` directory.
+- Includes a Doctor check for the local `claude` command, working directory, and AquaCloud `/models`.
+- Keeps API keys out of generated launcher files by passing them through the child process environment.
+- Clears API keys from local config by default when the launcher closes.
 
 ## Requirements
 
@@ -39,7 +37,7 @@ The built-in Doctor checks local setup and AquaCloud `/models`. It does not spen
 
 ## Skills Sync
 
-The launcher can copy reusable Claude Skills from a template `.claude` directory into the selected working directory before launch. Choose the template folder manually the first time; the tool saves that choice for later runs.
+The launcher can copy reusable Claude Skills from a template `.claude` directory into the selected working directory before launch. Choose the template folder manually the first time; the launcher saves that choice for later runs.
 
 It copies:
 
@@ -51,17 +49,17 @@ It does not overwrite existing files and does not copy session history, project 
 
 ## Release
 
-Release zips can be rebuilt from this clean repository:
+Download zips can be rebuilt from this repository:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 ```
 
-The script writes language-specific zip files to `..\release-assets` and prints SHA256 hashes.
+The script writes language-specific zip files to `downloads/` and prints SHA256 hashes.
 
-## Clean Release Notes
+## Repository Hygiene
 
-This repository intentionally contains only the launcher, command files, README files, and ignore rules.
+This repository intentionally keeps source scripts, command files, documentation, packaging scripts, and small downloadable release zips only.
 
 Local user files are ignored and should not be committed:
 
