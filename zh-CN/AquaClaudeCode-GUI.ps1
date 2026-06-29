@@ -33,28 +33,6 @@ function Resolve-WorkingDirectory($Value) {
     return $null
 }
 
-function Get-DefaultClaudeTemplateDirectory {
-    $candidates = @(
-        (Join-Path $AppDir ".claude"),
-        (Join-Path $env:USERPROFILE "Desktop\6.27\.claude"),
-        (Join-Path $env:USERPROFILE ".claude")
-    )
-
-    foreach ($candidate in $candidates) {
-        if ((Test-Path -LiteralPath $candidate -PathType Container) -and (Test-Path -LiteralPath (Join-Path $candidate "skills") -PathType Container)) {
-            return (Resolve-Path -LiteralPath $candidate).ProviderPath
-        }
-    }
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate -PathType Container) {
-            return (Resolve-Path -LiteralPath $candidate).ProviderPath
-        }
-    }
-
-    return ""
-}
-
 function Resolve-ClaudeTemplateDirectory($Value) {
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return $null
@@ -547,7 +525,7 @@ function Select-SkillSourceDirectory {
     $dialog.Description = "选择 Skill 模板目录：可以选已有项目目录，也可以直接选 .claude 目录"
     $current = Resolve-ClaudeTemplateDirectory $skillSourceBox.Text.Trim()
     if ([string]::IsNullOrWhiteSpace($current)) {
-        $current = Get-DefaultClaudeTemplateDirectory
+        $current = $env:USERPROFILE
     }
     if (-not [string]::IsNullOrWhiteSpace($current)) {
         $dialog.SelectedPath = $current
@@ -559,6 +537,7 @@ function Select-SkillSourceDirectory {
             [System.Windows.Forms.MessageBox]::Show("请选择已有项目目录，或直接选择 .claude 目录。", "目录无效", "OK", "Warning") | Out-Null
         } else {
             $skillSourceBox.Text = $resolved
+            $syncSkillsCheckBox.Checked = $true
             Add-Log "已选择 Skill 模板目录：$resolved"
         }
     }
@@ -675,8 +654,8 @@ $browseDirButton.Add_Click({ Select-WorkingDirectory })
 $form.Controls.Add($browseDirButton)
 
 $syncSkillsCheckBox = New-Object System.Windows.Forms.CheckBox
-$syncSkillsCheckBox.Text = "启动前同步 Skills（推荐）"
-$syncSkillsCheckBox.Checked = $true
+$syncSkillsCheckBox.Text = "启动前同步 Skills"
+$syncSkillsCheckBox.Checked = $false
 $syncSkillsCheckBox.Location = New-Object System.Drawing.Point(28, 398)
 $syncSkillsCheckBox.Size = New-Object System.Drawing.Size(260, 28)
 $form.Controls.Add($syncSkillsCheckBox)
@@ -690,7 +669,7 @@ $form.Controls.Add($skillSourceLabel)
 $skillSourceBox = New-Object System.Windows.Forms.TextBox
 $skillSourceBox.Location = New-Object System.Drawing.Point(28, 456)
 $skillSourceBox.Size = New-Object System.Drawing.Size(548, 30)
-$skillSourceBox.Text = Get-DefaultClaudeTemplateDirectory
+$skillSourceBox.Text = ""
 $form.Controls.Add($skillSourceBox)
 
 $browseSkillSourceButton = New-Object System.Windows.Forms.Button

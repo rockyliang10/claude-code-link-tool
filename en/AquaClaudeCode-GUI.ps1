@@ -33,28 +33,6 @@ function Resolve-WorkingDirectory($Value) {
     return $null
 }
 
-function Get-DefaultClaudeTemplateDirectory {
-    $candidates = @(
-        (Join-Path $AppDir ".claude"),
-        (Join-Path $env:USERPROFILE "Desktop\6.27\.claude"),
-        (Join-Path $env:USERPROFILE ".claude")
-    )
-
-    foreach ($candidate in $candidates) {
-        if ((Test-Path -LiteralPath $candidate -PathType Container) -and (Test-Path -LiteralPath (Join-Path $candidate "skills") -PathType Container)) {
-            return (Resolve-Path -LiteralPath $candidate).ProviderPath
-        }
-    }
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate -PathType Container) {
-            return (Resolve-Path -LiteralPath $candidate).ProviderPath
-        }
-    }
-
-    return ""
-}
-
 function Resolve-ClaudeTemplateDirectory($Value) {
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return $null
@@ -546,7 +524,7 @@ function Select-SkillSourceDirectory {
     $dialog.Description = "Choose the skill template folder: an existing project folder, or the .claude folder directly"
     $current = Resolve-ClaudeTemplateDirectory $skillSourceBox.Text.Trim()
     if ([string]::IsNullOrWhiteSpace($current)) {
-        $current = Get-DefaultClaudeTemplateDirectory
+        $current = $env:USERPROFILE
     }
     if (-not [string]::IsNullOrWhiteSpace($current)) {
         $dialog.SelectedPath = $current
@@ -558,6 +536,7 @@ function Select-SkillSourceDirectory {
             [System.Windows.Forms.MessageBox]::Show("Choose an existing project folder, or choose the .claude folder directly.", "Invalid Folder", "OK", "Warning") | Out-Null
         } else {
             $skillSourceBox.Text = $resolved
+            $syncSkillsCheckBox.Checked = $true
             Add-Log "Selected skill template: $resolved"
         }
     }
@@ -674,8 +653,8 @@ $browseDirButton.Add_Click({ Select-WorkingDirectory })
 $form.Controls.Add($browseDirButton)
 
 $syncSkillsCheckBox = New-Object System.Windows.Forms.CheckBox
-$syncSkillsCheckBox.Text = "Sync Skills before launch (recommended)"
-$syncSkillsCheckBox.Checked = $true
+$syncSkillsCheckBox.Text = "Sync Skills before launch"
+$syncSkillsCheckBox.Checked = $false
 $syncSkillsCheckBox.Location = New-Object System.Drawing.Point(28, 398)
 $syncSkillsCheckBox.Size = New-Object System.Drawing.Size(320, 28)
 $form.Controls.Add($syncSkillsCheckBox)
@@ -689,7 +668,7 @@ $form.Controls.Add($skillSourceLabel)
 $skillSourceBox = New-Object System.Windows.Forms.TextBox
 $skillSourceBox.Location = New-Object System.Drawing.Point(28, 456)
 $skillSourceBox.Size = New-Object System.Drawing.Size(548, 30)
-$skillSourceBox.Text = Get-DefaultClaudeTemplateDirectory
+$skillSourceBox.Text = ""
 $form.Controls.Add($skillSourceBox)
 
 $browseSkillSourceButton = New-Object System.Windows.Forms.Button

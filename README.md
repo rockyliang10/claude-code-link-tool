@@ -39,7 +39,7 @@ The built-in Doctor checks local setup and AquaCloud `/models`. It does not spen
 
 ## Skills Sync
 
-The launcher can copy reusable Claude Skills from a template `.claude` directory into the selected working directory before launch.
+The launcher can copy reusable Claude Skills from a template `.claude` directory into the selected working directory before launch. Choose the template folder manually the first time; the tool saves that choice for later runs.
 
 It copies:
 

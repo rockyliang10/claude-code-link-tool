@@ -14,7 +14,7 @@ This is a clean Windows launcher for non-technical users. Double-click it, enter
 4. Click `Fetch Models`.
 5. Type a keyword into the search box, such as `deepseek`, then pick a model from the filtered dropdown.
 6. Choose the `Claude Code working directory`.
-7. Keep `Sync Skills before launch` enabled and choose a template folder that already has your skills configured.
+7. To reuse Skills, click `Browse`, choose a project folder that already has Skills configured or choose its `.claude` folder directly. The tool will enable `Sync Skills before launch` after you choose a template.
 8. Optional: click `Doctor` to check the `claude` command, working directory, and AquaCloud `/models`.
 9. Click `Launch Claude Code`.
 
@@ -30,7 +30,7 @@ This launcher sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_
 
 ## Skills Sync
 
-The launcher can copy reusable Claude Skills from a template `.claude` directory into the selected working directory before launch.
+The launcher can copy reusable Claude Skills from a template `.claude` directory into the selected working directory before launch. Choose the template folder manually the first time; the tool saves that choice for later runs.
 
 It copies:
 
