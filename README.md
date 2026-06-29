@@ -4,8 +4,8 @@ A Windows launcher that connects AquaCloud-compatible models to Claude Code with
 
 ## Quick Download
 
-- 中文版：[Download AquaClaudeCode-zh-CN.zip](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-zh-CN.zip)
-- English: [Download AquaClaudeCode-en.zip](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-en.zip)
+- 中文版：[Download AquaClaudeCode-zh-CN.zip](https://github.com/rockyliang10/claude-code-link-tool/releases/latest/download/AquaClaudeCode-zh-CN.zip)
+- English: [Download AquaClaudeCode-en.zip](https://github.com/rockyliang10/claude-code-link-tool/releases/latest/download/AquaClaudeCode-en.zip)
 
 下载后解压：
 

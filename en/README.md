@@ -4,7 +4,7 @@ This Windows launcher connects AquaCloud-compatible models to Claude Code and pr
 
 ## Download
 
-[Download latest English version](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-en.zip)
+[Download latest English version](https://github.com/rockyliang10/claude-code-link-tool/releases/latest/download/AquaClaudeCode-en.zip)
 
 ## How To Use
 

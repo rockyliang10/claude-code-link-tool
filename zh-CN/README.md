@@ -4,7 +4,7 @@
 
 ## 下载
 
-[下载最新版中文包](https://github.com/rockyliang10/claude-code-link-tool/raw/main/downloads/AquaClaudeCode-zh-CN.zip)
+[下载最新版中文包](https://github.com/rockyliang10/claude-code-link-tool/releases/latest/download/AquaClaudeCode-zh-CN.zip)
 
 ## 使用方法
 
