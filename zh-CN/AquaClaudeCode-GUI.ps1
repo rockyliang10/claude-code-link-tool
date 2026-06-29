@@ -468,28 +468,41 @@ function Start-Claude {
         }
     }
 
+    $claudePath = $claudeCmd.Source
+    $escapedClaudePath = $claudePath.Replace("'", "''")
     $launchScript = @"
 Write-Host 'AquaCloud -> Claude Code'
 Write-Host ('Base URL: ' + `$env:ANTHROPIC_BASE_URL)
 Write-Host ('Model: ' + `$env:ANTHROPIC_MODEL)
 Write-Host ('Working directory: ' + (Get-Location).Path)
-claude
+& '$escapedClaudePath'
 Read-Host 'Claude Code 已退出，按回车关闭窗口'
 "@
     $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($launchScript))
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = "powershell.exe"
-    $startInfo.WorkingDirectory = $workingDirectory
-    $startInfo.UseShellExecute = $false
-    $startInfo.CreateNoWindow = $false
-    $startInfo.Arguments = "-NoExit -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
-    $startInfo.EnvironmentVariables["ANTHROPIC_BASE_URL"] = $baseUrl
-    $startInfo.EnvironmentVariables["ANTHROPIC_AUTH_TOKEN"] = $apiKey
-    $startInfo.EnvironmentVariables["ANTHROPIC_MODEL"] = $model
-    $startInfo.EnvironmentVariables["NO_PROXY"] = "127.0.0.1,localhost"
+    $previousBaseUrl = $env:ANTHROPIC_BASE_URL
+    $previousAuthToken = $env:ANTHROPIC_AUTH_TOKEN
+    $previousModel = $env:ANTHROPIC_MODEL
+    $previousNoProxy = $env:NO_PROXY
 
-    Add-Log "启动 Claude Code，模型：$model，目录：$workingDirectory"
-    [void][System.Diagnostics.Process]::Start($startInfo)
+    try {
+        $env:ANTHROPIC_BASE_URL = $baseUrl
+        $env:ANTHROPIC_AUTH_TOKEN = $apiKey
+        $env:ANTHROPIC_MODEL = $model
+        $env:NO_PROXY = "127.0.0.1,localhost"
+
+        Add-Log "启动 Claude Code，模型：$model，目录：$workingDirectory"
+        $process = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit -ExecutionPolicy Bypass -EncodedCommand $encodedCommand" -WorkingDirectory $workingDirectory -WindowStyle Normal -PassThru
+        Add-Log "Claude Code 窗口已打开，进程 ID：$($process.Id)"
+    } catch {
+        Set-Status "启动失败" "Firebrick"
+        Add-Log "启动失败：$($_.Exception.Message)"
+        [System.Windows.Forms.MessageBox]::Show("Claude Code 启动失败：$($_.Exception.Message)", "启动失败", "OK", "Error") | Out-Null
+    } finally {
+        if ($null -eq $previousBaseUrl) { Remove-Item Env:\ANTHROPIC_BASE_URL -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_BASE_URL = $previousBaseUrl }
+        if ($null -eq $previousAuthToken) { Remove-Item Env:\ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_AUTH_TOKEN = $previousAuthToken }
+        if ($null -eq $previousModel) { Remove-Item Env:\ANTHROPIC_MODEL -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_MODEL = $previousModel }
+        if ($null -eq $previousNoProxy) { Remove-Item Env:\NO_PROXY -ErrorAction SilentlyContinue } else { $env:NO_PROXY = $previousNoProxy }
+    }
 }
 
 function Save-Only {
