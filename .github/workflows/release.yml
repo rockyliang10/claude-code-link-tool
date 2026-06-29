@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing v* tag to publish"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select release tag
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ inputs.tag }}"
+          } else {
+            $tag = "${env:GITHUB_REF_NAME}"
+          }
+
+          if ($tag -notmatch '^v[\w.-]+$') {
+            throw "Release tag must start with v and contain only letters, digits, dots, underscores, or hyphens: $tag"
+          }
+
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            git fetch --tags --force
+            git checkout "refs/tags/$tag"
+          }
+
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build release packages
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          $assets = @(
+            "downloads/AquaClaudeCode-zh-CN.zip",
+            "downloads/AquaClaudeCode-en.zip"
+          )
+
+          foreach ($asset in $assets) {
+            if (-not (Test-Path -LiteralPath $asset -PathType Leaf)) {
+              throw "Missing release asset: $asset"
+            }
+          }
+
+          $hashLines = Get-FileHash -Algorithm SHA256 -LiteralPath $assets |
+            ForEach-Object { '- {0}: `{1}`' -f (Split-Path -Leaf $_.Path), $_.Hash }
+
+          @(
+            "# $env:RELEASE_TAG",
+            "",
+            "SHA256:",
+            "",
+            $hashLines
+          ) | Set-Content -LiteralPath release-notes.md -Encoding utf8
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        run: |
+          $assets = @(
+            "downloads/AquaClaudeCode-zh-CN.zip",
+            "downloads/AquaClaudeCode-en.zip"
+          )
+
+          gh release view "$env:RELEASE_TAG" *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+
+          if ($releaseExists) {
+            gh release edit "$env:RELEASE_TAG" --title "$env:RELEASE_TAG" --notes-file release-notes.md
+            gh release upload "$env:RELEASE_TAG" $assets --clobber
+          } else {
+            gh release create "$env:RELEASE_TAG" $assets --title "$env:RELEASE_TAG" --notes-file release-notes.md --verify-tag
+          }
