@@ -1,0 +1,10 @@
+{
+  "baseUrl": "https://apibeta.aquacloud.io/v1",
+  "apiKey": "",
+  "model": "",
+  "workingDirectory": "",
+  "syncSkills": false,
+  "skillSourceDirectory": "",
+  "clearKeyOnClose": true,
+  "updatedAt": ""
+}

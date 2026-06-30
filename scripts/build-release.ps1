@@ -11,12 +11,12 @@ $packages = @(
     @{
         Name = "AquaClaudeCode-zh-CN.zip"
         Source = Join-Path $repoRoot "zh-CN"
-        Files = @("AquaClaudeCode-GUI.ps1", "*.cmd", "README.md")
+        Files = @("AquaClaudeCode-GUI.ps1", "*.cmd", "README.md", "aqua-claude-config.json")
     },
     @{
         Name = "AquaClaudeCode-en.zip"
         Source = Join-Path $repoRoot "en"
-        Files = @("AquaClaudeCode-GUI.ps1", "Open-AquaClaudeCode.cmd", "README.md")
+        Files = @("AquaClaudeCode-GUI.ps1", "Open-AquaClaudeCode.cmd", "README.md", "aqua-claude-config.json")
     }
 )
 

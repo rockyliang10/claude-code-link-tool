@@ -1,5 +1,7 @@
 # Local user settings and secrets
 aqua-claude-config.json
+!zh-CN/aqua-claude-config.json
+!en/aqua-claude-config.json
 *.local.json
 *.secret.*
 *.key
