@@ -467,40 +467,55 @@ function Start-Claude {
         }
     }
 
+    $powerShellCmd = Get-Command "powershell.exe" -ErrorAction SilentlyContinue
+    if (-not $powerShellCmd) {
+        [System.Windows.Forms.MessageBox]::Show("Windows PowerShell was not found, so the Claude Code terminal window cannot be opened.", "PowerShell Not Found", "OK", "Error") | Out-Null
+        return
+    }
+
     $claudePath = $claudeCmd.Source
     $escapedClaudePath = $claudePath.Replace("'", "''")
+    $escapedModel = $model.Replace("'", "''")
     $launchScript = @"
+`$Host.UI.RawUI.WindowTitle = 'Aqua Claude Code - PowerShell'
 Write-Host 'AquaCloud -> Claude Code'
+Write-Host ('Shell: PowerShell ' + `$PSVersionTable.PSVersion)
 Write-Host ('Base URL: ' + `$env:ANTHROPIC_BASE_URL)
 Write-Host ('Model: ' + `$env:ANTHROPIC_MODEL)
 Write-Host ('Working directory: ' + (Get-Location).Path)
-& '$escapedClaudePath'
+& '$escapedClaudePath' --model '$escapedModel'
 Read-Host 'Claude Code has exited. Press Enter to close this window.'
 "@
     $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($launchScript))
-    $previousBaseUrl = $env:ANTHROPIC_BASE_URL
-    $previousAuthToken = $env:ANTHROPIC_AUTH_TOKEN
-    $previousModel = $env:ANTHROPIC_MODEL
-    $previousNoProxy = $env:NO_PROXY
+    $temporaryEnv = [ordered]@{
+        ANTHROPIC_BASE_URL = $baseUrl
+        ANTHROPIC_AUTH_TOKEN = $apiKey
+        ANTHROPIC_MODEL = $model
+        ANTHROPIC_CUSTOM_MODEL_OPTION = $model
+        ANTHROPIC_CUSTOM_MODEL_OPTION_NAME = $model
+        ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION = "AquaCloud model: $model"
+        CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = "1"
+        NO_PROXY = "127.0.0.1,localhost"
+    }
+    $previousEnv = @{}
 
     try {
-        $env:ANTHROPIC_BASE_URL = $baseUrl
-        $env:ANTHROPIC_AUTH_TOKEN = $apiKey
-        $env:ANTHROPIC_MODEL = $model
-        $env:NO_PROXY = "127.0.0.1,localhost"
+        foreach ($name in $temporaryEnv.Keys) {
+            $previousEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+            [Environment]::SetEnvironmentVariable($name, [string]$temporaryEnv[$name], "Process")
+        }
 
         Add-Log "Starting Claude Code with model: $model, directory: $workingDirectory"
-        $process = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit -ExecutionPolicy Bypass -EncodedCommand $encodedCommand" -WorkingDirectory $workingDirectory -WindowStyle Normal -PassThru
+        $process = Start-Process -FilePath $powerShellCmd.Source -ArgumentList "-NoExit -NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCommand" -WorkingDirectory $workingDirectory -WindowStyle Normal -PassThru
         Add-Log "Claude Code window opened, process ID: $($process.Id)"
     } catch {
         Set-Status "Launch failed" "Firebrick"
         Add-Log "Launch failed: $($_.Exception.Message)"
         [System.Windows.Forms.MessageBox]::Show("Claude Code launch failed: $($_.Exception.Message)", "Launch Failed", "OK", "Error") | Out-Null
     } finally {
-        if ($null -eq $previousBaseUrl) { Remove-Item Env:\ANTHROPIC_BASE_URL -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_BASE_URL = $previousBaseUrl }
-        if ($null -eq $previousAuthToken) { Remove-Item Env:\ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_AUTH_TOKEN = $previousAuthToken }
-        if ($null -eq $previousModel) { Remove-Item Env:\ANTHROPIC_MODEL -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_MODEL = $previousModel }
-        if ($null -eq $previousNoProxy) { Remove-Item Env:\NO_PROXY -ErrorAction SilentlyContinue } else { $env:NO_PROXY = $previousNoProxy }
+        foreach ($name in $temporaryEnv.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $previousEnv[$name], "Process")
+        }
     }
 }
 
