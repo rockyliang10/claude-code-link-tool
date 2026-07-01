@@ -484,7 +484,8 @@ Write-Host ('Shell: PowerShell ' + `$PSVersionTable.PSVersion)
 Write-Host ('Base URL: ' + `$env:ANTHROPIC_BASE_URL)
 Write-Host ('Model: ' + `$env:ANTHROPIC_MODEL)
 Write-Host ('Working directory: ' + (Get-Location).Path)
-& '$escapedClaudePath' --model '$escapedModel'
+Write-Host 'Settings: project,local'
+& '$escapedClaudePath' --setting-sources project,local --model '$escapedModel'
 Read-Host 'Claude Code 已退出，按回车关闭窗口'
 "@
     $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($launchScript))
