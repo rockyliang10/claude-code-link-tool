@@ -96,6 +96,15 @@ function Normalize-BaseUrl($Value) {
     return $Value.Trim().TrimEnd("/")
 }
 
+function Get-ClaudeCodeBaseUrl($BaseUrl) {
+    $normalized = Normalize-BaseUrl $BaseUrl
+    if ($normalized.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $normalized.Substring(0, $normalized.Length - 3)
+    }
+
+    return $normalized
+}
+
 function Get-ModelId($Item) {
     if ($null -eq $Item) { return $null }
     if ($Item -is [string]) { return $Item }
@@ -430,6 +439,7 @@ function Invoke-Doctor {
 
 function Start-Claude {
     $baseUrl = Normalize-BaseUrl $baseUrlBox.Text
+    $claudeCodeBaseUrl = Get-ClaudeCodeBaseUrl $baseUrl
     $apiKey = $keyBox.Text.Trim()
     $model = [string]$modelBox.Text
     $workingDirectory = Resolve-WorkingDirectory $workingDirBox.Text.Trim()
@@ -489,7 +499,7 @@ Read-Host 'Claude Code has exited. Press Enter to close this window.'
 "@
     $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($launchScript))
     $temporaryEnv = [ordered]@{
-        ANTHROPIC_BASE_URL = $baseUrl
+        ANTHROPIC_BASE_URL = $claudeCodeBaseUrl
         ANTHROPIC_AUTH_TOKEN = $apiKey
         ANTHROPIC_MODEL = $model
         ANTHROPIC_CUSTOM_MODEL_OPTION = $model
